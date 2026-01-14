@@ -197,10 +197,17 @@ class Alembic:
             version_locations.append(version_location)
 
         c.set_main_option("script_location", script_location)
-        c.set_main_option("version_locations", ",".join(version_locations))
+        c.set_main_option(
+            "path_separator", current_app.config["ALEMBIC"]["path_separator"]
+        )
+        path_sep = self._get_file_separator_char(c)
+        c.set_main_option(
+            "version_locations",
+            path_sep.join(version_locations),
+        )
 
         for key, value in current_app.config["ALEMBIC"].items():
-            if key in ("script_location", "version_locations"):
+            if key in ("script_location", "version_locations", "path_separator"):
                 continue
 
             if isinstance(value, dict):
@@ -214,6 +221,22 @@ class Alembic:
             c.set_main_option("databases", ", ".join(self.metadatas))
 
         return cache.config
+
+    def _get_file_separator_char(self, config: Config) -> str:
+        if hasattr(config, "_get_file_separator_char"):
+            # Alembic >= 1.16.0
+            return config._get_file_separator_char("path_separator")  # type: ignore[return-value]
+
+        join_on_path = {
+            "space": " ",
+            "newline": "\n",
+            "os": os.pathsep,
+            ":": ":",
+            ";": ";",
+        }
+        return join_on_path.get(
+            current_app.config["ALEMBIC"].get("version_path_separator"), ","
+        )
 
     @property
     def script_directory(self) -> ScriptDirectory:
